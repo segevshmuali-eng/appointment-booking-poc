@@ -1,5 +1,5 @@
 {
-  "name": "4. קליטת תורים מהאפליקציה ורישום בגוגל שיטס",
+  "name": "4. קליטת תורים מהאפליקציה ויצירת אירוע ביומן",
   "nodes": [
     {
       "parameters": {
@@ -16,45 +16,22 @@
     },
     {
       "parameters": {
-        "operation": "append",
-        "sheetName": {
+        "calendar": {
           "__rl": true,
-          "value": "תשלומים ותורים",
-          "mode": "name"
+          "value": "segevshmuali@gmail.com",
+          "mode": "list"
         },
-        "fieldsUi": {
-          "fieldValues": [
-            {
-              "fieldId": "שם מלא",
-              "fieldValue": "={{ $json.body.fullName }}"
-            },
-            {
-              "fieldId": "מייל",
-              "fieldValue": "={{ $json.body.email }}"
-            },
-            {
-              "fieldId": "טלפון",
-              "fieldValue": "={{ $json.body.phone }}"
-            },
-            {
-              "fieldId": "תאריך קיום התור",
-              "fieldValue": "={{ $json.body.appointmentDate }}"
-            },
-            {
-              "fieldId": "סכום",
-              "fieldValue": "={{ $json.body.servicePrice }}"
-            },
-            {
-              "fieldId": "סטטוס תשלום",
-              "fieldValue": "={{ $json.body.paymentStatus }}"
-            }
-          ]
+        "start": "={{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.appointmentDate.replace(\" \", \"T\") + \":00+02:00\" }}",
+        "end": "={{ DateTime.fromISO($(\"קליטת תור חדש מהאפליקציה\").first().json.body.appointmentDate.replace(\" \", \"T\") + \":00+02:00\").plus({ hours: 1 }).toISO() }}",
+        "additionalFields": {
+          "summary": "=תור: {{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.serviceName }} - {{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.fullName }}",
+          "description": "=שם: {{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.fullName }}\\nטלפון: {{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.phone }}\\nמייל: {{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.email }}\\nמחיר: ₪{{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.servicePrice }}"
         }
       },
-      "id": "append-booking-sheet",
-      "name": "רישום תור בטבלת גוגל שיטס",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "id": "create-calendar-event",
+      "name": "יצירת אירוע תור ביומן גוגל של בעל העסק",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
       "position": [224, 0]
     }
   ],
@@ -63,7 +40,7 @@
       "main": [
         [
           {
-            "node": "רישום תור בטבלת גוגל שיטס",
+            "node": "יצירת אירוע תור ביומן גוגל של בעל העסק",
             "type": "main",
             "index": 0
           }
