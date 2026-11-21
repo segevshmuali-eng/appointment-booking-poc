@@ -16,6 +16,7 @@
     },
     {
       "parameters": {
+        "operation": "getAll",
         "calendar": {
           "__rl": true,
           "value": "segevshmuali@gmail.com",
