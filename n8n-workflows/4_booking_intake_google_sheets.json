@@ -1,0 +1,74 @@
+{
+  "name": "4. קליטת תורים מהאפליקציה ורישום בגוגל שיטס",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "appointment-booking",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-booking",
+      "name": "קליטת תור חדש מהאפליקציה",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetName": {
+          "__rl": true,
+          "value": "תשלומים ותורים",
+          "mode": "name"
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "שם מלא",
+              "fieldValue": "={{ $json.body.fullName }}"
+            },
+            {
+              "fieldId": "מייל",
+              "fieldValue": "={{ $json.body.email }}"
+            },
+            {
+              "fieldId": "טלפון",
+              "fieldValue": "={{ $json.body.phone }}"
+            },
+            {
+              "fieldId": "תאריך קיום התור",
+              "fieldValue": "={{ $json.body.appointmentDate }}"
+            },
+            {
+              "fieldId": "סכום",
+              "fieldValue": "={{ $json.body.servicePrice }}"
+            },
+            {
+              "fieldId": "סטטוס תשלום",
+              "fieldValue": "={{ $json.body.paymentStatus }}"
+            }
+          ]
+        }
+      },
+      "id": "append-booking-sheet",
+      "name": "רישום תור בטבלת גוגל שיטס",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [224, 0]
+    }
+  ],
+  "connections": {
+    "קליטת תור חדש מהאפליקציה": {
+      "main": [
+        [
+          {
+            "node": "רישום תור בטבלת גוגל שיטס",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

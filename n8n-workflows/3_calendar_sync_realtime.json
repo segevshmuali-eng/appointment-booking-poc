@@ -1,0 +1,95 @@
+{
+  "name": "3. סנכרון יומן גוגל בזמן אמת (Live Webhook)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "available-slots",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-calendar",
+      "name": "קבלת בקשת שעות פנויות מהאפליקציה",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "segevshmuali@gmail.com",
+          "mode": "list"
+        },
+        "timeMin": "={{ $json.query.date ? $json.query.date + \"T00:00:00+02:00\" : $now.toISO() }}",
+        "timeMax": "={{ $json.query.date ? $json.query.date + \"T23:59:59+02:00\" : $now.plus({ days: 1 }).toISO() }}",
+        "options": {
+          "singleEvents": true,
+          "orderBy": "startTime"
+        }
+      },
+      "id": "get-calendar-live",
+      "name": "בדיקת אירועים ביומן גוגל בזמן אמת",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [224, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const events = $input.all(); const busyHours = new Set(); const standardWorkingHours = ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00']; const requestedDateStr = $('קבלת בקשת שעות פנויות מהאפליקציה').first().json.query?.date || new Date().toISOString().split('T')[0]; for (const ev of events) { const startStr = ev.json.start?.dateTime || ev.json.start?.date; const endStr = ev.json.end?.dateTime || ev.json.end?.date; if (!startStr) continue; const startDate = new Date(startStr); const endDate = endStr ? new Date(endStr) : new Date(startDate.getTime() + 60 * 60 * 1000); for (const slot of standardWorkingHours) { const slotStart = new Date(requestedDateStr + 'T' + slot + ':00+02:00'); const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000); if (startDate < slotEnd && endDate > slotStart) { busyHours.add(slot); } } } const freeSlots = standardWorkingHours.filter(h => !busyHours.has(h)); return [{ json: { availableSlots: freeSlots, requestedDate: requestedDateStr, busyCount: busyHours.size } }];"
+      },
+      "id": "calc-free-slots",
+      "name": "חישוב שעות פנויות בלייב",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [448, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-slots",
+      "name": "החזרת שעות פנויות לאפליקציה",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [672, 0]
+    }
+  ],
+  "connections": {
+    "קבלת בקשת שעות פנויות מהאפליקציה": {
+      "main": [
+        [
+          {
+            "node": "בדיקת אירועים ביומן גוגל בזמן אמת",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "בדיקת אירועים ביומן גוגל בזמן אמת": {
+      "main": [
+        [
+          {
+            "node": "חישוב שעות פנויות בלייב",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "חישוב שעות פנויות בלייב": {
+      "main": [
+        [
+          {
+            "node": "החזרת שעות פנויות לאפליקציה",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

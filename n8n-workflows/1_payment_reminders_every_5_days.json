@@ -1,0 +1,150 @@
+{
+  "name": "1. ניהול תשלומים ותזכורות כל 5 ימים",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger-5days",
+      "name": "תזמון כל 5 ימים",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetName": {
+          "__rl": true,
+          "value": "תשלומים ותורים",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "read-google-sheet",
+      "name": "קריאת טבלת תשלומים מגוגל שיטס",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// בדיקה האם הלקוח טרם שילם ועברו לפחות 5 ימים ממועד התור\nconst items = $input.all();\nconst results = [];\nconst now = new Date();\n\nfor (const item of items) {\n  const row = item.json;\n  const status = (row['סטטוס תשלום'] || '').trim().toUpperCase();\n  const appointmentDateStr = row['תאריך קיום התור'];\n  \n  // אם כבר שולם או הסתיים - מדלגים\n  if (status === 'PAY' || status === 'FINISH') {\n    continue;\n  }\n  \n  if (!appointmentDateStr) {\n    continue;\n  }\n  \n  const appDate = new Date(appointmentDateStr);\n  const diffTime = now.getTime() - appDate.getTime();\n  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));\n  \n  // אם עברו 5 ימים או יותר ממועד התור והסטטוס אינו שולם\n  if (diffDays >= 5) {\n    results.push({\n      json: {\n        ...row,\n        diffDays: diffDays,\n        reminderMessage: `שלום ${row['שם מלא']}, חלפו ${diffDays} ימים ממועד הטיפול שלך (${appointmentDateStr}). נשמח להסדרת התשלום עבור השירות שקיבלת. תודה רבה!`\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "id": "filter-unpaid-customers",
+      "name": "סינון לקוחות שלא שילמו ועברו 5 ימים",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "unpaid-condition",
+              "leftValue": "={{ $json.reminderMessage }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-unpaid-found",
+      "name": "האם נמצאו חייבים בתזכורת?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.sms-provider.com/v1/send",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "to",
+              "value": "={{ $json['טלפון'] }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.reminderMessage }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-sms-reminder",
+      "name": "שליחת הודעת תזכורת לטלפון הלקוח",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 280]
+    }
+  ],
+  "connections": {
+    "תזמון כל 5 ימים": {
+      "main": [
+        [
+          {
+            "node": "קריאת טבלת תשלומים מגוגל שיטס",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "קריאת טבלת תשלומים מגוגל שיטס": {
+      "main": [
+        [
+          {
+            "node": "סינון לקוחות שלא שילמו ועברו 5 ימים",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "סינון לקוחות שלא שילמו ועברו 5 ימים": {
+      "main": [
+        [
+          {
+            "node": "האם נמצאו חייבים בתזכורת?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "האם נמצאו חייבים בתזכורת?": {
+      "main": [
+        [
+          {
+            "node": "שליחת הודעת תזכורת לטלפון הלקוח",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

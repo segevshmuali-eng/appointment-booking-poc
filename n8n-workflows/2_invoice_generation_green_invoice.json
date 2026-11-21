@@ -1,0 +1,166 @@
+{
+  "name": "2. הפקת חשבוניות במורנינג ועדכון סטטוס ל-FINISH",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "schedule-invoices",
+      "name": "תזמון בדיקת לקוחות ששילמו",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetName": {
+          "__rl": true,
+          "value": "תשלומים ותורים",
+          "mode": "name"
+        }
+      },
+      "id": "read-sheets",
+      "name": "קריאת טבלת תשלומים",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [224, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all(); const results = []; for (const item of items) { const row = item.json; const status = (row['סטטוס תשלום'] || '').trim().toUpperCase(); if (status === 'PAY') { results.push({ json: { ...row, invoicePayload: { clientName: row['שם מלא'], clientEmail: row['מייל'], clientPhone: row['טלפון'], serviceDate: row['תאריך קיום התור'], amount: row['סכום'] || 300 } } }); } } return results;"
+      },
+      "id": "filter-paid",
+      "name": "סינון רשומות בסטטוס PAY",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [448, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.greeninvoice.co.il/api/v1/account/token",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"id\": \"הזן_כאן_את_מפתח_הזיהוי_KEY\",\n  \"secret\": \"הזן_כאן_את_המפתח_הסודי_SECRET\"\n}"
+      },
+      "id": "login-morning",
+      "name": "התחברות למורנינג והזנת מפתחות API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [672, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.greeninvoice.co.il/api/v1/documents/receipt",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"התחברות למורנינג והזנת מפתחות API\").first().json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"client\": {\n    \"name\": \"{{ $(\"סינון רשומות בסטטוס PAY\").item.json.invoicePayload.clientName }}\",\n    \"emails\": [\"{{ $(\"סינון רשומות בסטטוס PAY\").item.json.invoicePayload.clientEmail }}\"]\n  },\n  \"payment\": [\n    {\n      \"type\": 1,\n      \"price\": {{ $(\"סינון רשומות בסטטוס PAY\").item.json.invoicePayload.amount }}\n    }\n  ]\n}"
+      },
+      "id": "create-invoice",
+      "name": "הפקת חשבונית במערכת מורנינג ושליחה במייל",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [896, 0]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "sheetName": {
+          "__rl": true,
+          "value": "תשלומים ותורים",
+          "mode": "name"
+        },
+        "columnToMatchOn": "מייל",
+        "valueToMatchOn": "={{ $(\"סינון רשומות בסטטוס PAY\").item.json[\"מייל\"] }}",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "סטטוס תשלום",
+              "fieldValue": "FINISH"
+            }
+          ]
+        }
+      },
+      "id": "update-sheet",
+      "name": "עדכון סטטוס בגוגל שיטס ל-FINISH",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1120, 0]
+    }
+  ],
+  "connections": {
+    "תזמון בדיקת לקוחות ששילמו": {
+      "main": [
+        [
+          {
+            "node": "קריאת טבלת תשלומים",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "קריאת טבלת תשלומים": {
+      "main": [
+        [
+          {
+            "node": "סינון רשומות בסטטוס PAY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "סינון רשומות בסטטוס PAY": {
+      "main": [
+        [
+          {
+            "node": "התחברות למורנינג והזנת מפתחות API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "התחברות למורנינג והזנת מפתחות API": {
+      "main": [
+        [
+          {
+            "node": "הפקת חשבונית במערכת מורנינג ושליחה במייל",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "הפקת חשבונית במערכת מורנינג ושליחה במייל": {
+      "main": [
+        [
+          {
+            "node": "עדכון סטטוס בגוגל שיטס ל-FINISH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

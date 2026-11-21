@@ -1,0 +1,105 @@
+{
+  "name": "3. סנכרון יומן גוגל של בעל העסק עם יומן האפליקציה כל שעה",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger-hourly",
+      "name": "תזמון סנכרון יומן כל שעה",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "segevshmueli0@gmail.com",
+          "mode": "id"
+        },
+        "timeMin": "={{ $now.toISO() }}",
+        "timeMax": "={{ $now.plus({ days: 7 }).toISO() }}",
+        "options": {
+          "singleEvents": true,
+          "orderBy": "startTime"
+        }
+      },
+      "id": "get-google-calendar-events",
+      "name": "שליפת אירועים מיומן גוגל של בעל העסק",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// חישוב השעות התפוסות והפנויות מתוך אירועי יומן גוגל\nconst events = $input.all();\nconst busySlotsByDate = {};\n\nfor (const ev of events) {\n  const startStr = ev.json.start?.dateTime || ev.json.start?.date;\n  const endStr = ev.json.end?.dateTime || ev.json.end?.date;\n  \n  if (!startStr) continue;\n  \n  const start = new Date(startStr);\n  const dateKey = start.toISOString().split('T')[0];\n  const hourKey = String(start.getHours()).padStart(2, '0') + ':00';\n  \n  if (!busySlotsByDate[dateKey]) {\n    busySlotsByDate[dateKey] = [];\n  }\n  busySlotsByDate[dateKey].push(hourKey);\n}\n\n// הגדרת כלל שעות העבודה האפשריות (בדידות)\nconst standardWorkingHours = [\n  \"09:00\", \"10:00\", \"11:00\", \"12:00\",\n  \"14:00\", \"15:00\", \"16:00\", \"17:00\", \"18:00\", \"19:00\"\n];\n\n// הפקת מפת שעות פנויות מעודכנת\nconst availableSlots = {};\nconst today = new Date();\n\nfor (let i = 0; i < 7; i++) {\n  const d = new Date(today);\n  d.setDate(today.getDate() + i);\n  const dateKey = d.toISOString().split('T')[0];\n  const busyForDay = busySlotsByDate[dateKey] || [];\n  \n  availableSlots[dateKey] = standardWorkingHours.filter(h => !busyForDay.includes(h));\n}\n\nreturn [{\n  json: {\n    syncedAt: new Date().toISOString(),\n    ownerEmail: 'segevshmueli0@gmail.com',\n    availableSlotsMap: availableSlots\n  }\n}];"
+      },
+      "id": "calculate-available-hours",
+      "name": "חישוב שעות תפוסות ופנויות",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.app-endpoint.com/v1/sync-calendar",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "sync-to-app-endpoint",
+      "name": "עדכון השעות הפנויות ביומן האפליקציה",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 300]
+    }
+  ],
+  "connections": {
+    "תזמון סנכרון יומן כל שעה": {
+      "main": [
+        [
+          {
+            "node": "שליפת אירועים מיומן גוגל של בעל העסק",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "שליפת אירועים מיומן גוגל של בעל העסק": {
+      "main": [
+        [
+          {
+            "node": "חישוב שעות תפוסות ופנויות",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "חישוב שעות תפוסות ופנויות": {
+      "main": [
+        [
+          {
+            "node": "עדכון השעות הפנויות ביומן האפליקציה",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
