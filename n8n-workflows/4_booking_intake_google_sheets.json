@@ -1,5 +1,5 @@
 {
-  "name": "4. קליטת תורים מהאפליקציה ויצירת אירוע ביומן",
+  "name": "4. קליטת תורים מהאפליקציה ויצירת אירוע ביומן ורישום בגוגל שיטס",
   "nodes": [
     {
       "parameters": {
@@ -33,6 +33,38 @@
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
       "position": [224, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1oPziYqsutpfD2Z8ZNv9NHNp6YHiWhDpDHd7WRK_rm40",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "שם מלא": "={{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.fullName }}",
+            "מייל": "={{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.email }}",
+            "טלפון ": "={{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.phone }}",
+            "תאריך ": "={{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.appointmentDate.split(' ')[0] }}",
+            "סכום": "={{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.servicePrice }}",
+            "סטטוס": "={{ $(\"קליטת תור חדש מהאפליקציה\").first().json.body.paymentStatus || 'טרם שולם' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "append-sheet-row",
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [448, 0]
     }
   ],
   "connections": {
@@ -41,6 +73,17 @@
         [
           {
             "node": "יצירת אירוע תור ביומן גוגל של בעל העסק",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "יצירת אירוע תור ביומן גוגל של בעל העסק": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
             "type": "main",
             "index": 0
           }
