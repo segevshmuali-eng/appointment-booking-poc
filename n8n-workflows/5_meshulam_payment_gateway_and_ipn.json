@@ -1,0 +1,324 @@
+{
+  "name": "5. סליקת משולם - קליטת תשלומים, חיוב טוקן ועדכון סטטוס PAY",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meshulam-payment-ipn",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-meshulam-ipn",
+      "name": "וובהוק התראת תשלום ממשולם (IPN)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "meshulam-ipn-webhook-id"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\n// בדיקה האם העסקה ממשולם אושרה (status === 1 או '1')\nconst isApproved = String(body.status) === '1' || String(body.status) === 'APPROVED';\nconst transactionId = body.transactionId || body.asmachta || body.transactionCode || 'TRX_' + Date.now();\nconst phone = (body.phone || body.custom_fields || body.cField1 || '').trim();\nconst email = body.email || '';\nconst amount = Number(body.sum || body.amount || 0);\n\nreturn [{\n  json: {\n    isApproved,\n    transactionId,\n    phone,\n    email,\n    amount,\n    paymentMethod: body.paymentType || (body.bit ? 'BIT' : 'CREDIT_CARD'),\n    rawBody: body\n  }\n}];"
+      },
+      "id": "parse-meshulam-ipn",
+      "name": "ניתוח נתוני עסקת משולם",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isApproved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-approved",
+      "name": "האם התשלום אושר במשולם?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1oPziYqsutpfD2Z8ZNv9NHNp6YHiWhDpDHd7WRK_rm40",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "סטטוס": "PAY"
+          },
+          "matchingColumns": [
+            "טלפון "
+          ],
+          "schema": [
+            {
+              "id": "טלפון ",
+              "displayName": "טלפון ",
+              "required": false,
+              "defaultMatch": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "סטטוס",
+              "displayName": "סטטוס",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "update-sheet-pay",
+      "name": "עדכון סטטוס ל-PAY בטבלת גוגל שיטס",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [720, -100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": 1,\n  \"message\": \"תשלום עודכן בהצלחה ל-PAY בגוגל שיטס\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-meshulam-ok",
+      "name": "אישור קליטה למשולם",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [960, -100]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meshulam-charge-token",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-charge-token",
+      "name": "וובהוק חיוב לקוח קבוע בטוקן",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 360],
+      "webhookId": "meshulam-charge-token-id"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sandbox.meshulam.co.il/api/light/server/1.0/createChargeTokenPayment",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"pageCode\": \"הזן_כאן_את_קוד_הדף_PAGE_CODE\",\n  \"userId\": \"הזן_כאן_את_מזהה_המשתמש_USER_ID\",\n  \"apiKey\": \"הזן_כאן_את_מפתח_ה-API_של_משולם\",\n  \"token\": \"{{ $json.body.cardToken }}\",\n  \"sum\": {{ $json.body.servicePrice || 320 }},\n  \"fullName\": \"{{ $json.body.fullName }}\",\n  \"phone\": \"{{ $json.body.phone }}\",\n  \"email\": \"{{ $json.body.email }}\",\n  \"description\": \"חיוב תור מרחב שלווה - {{ $json.body.serviceName }}\"\n}"
+      },
+      "id": "call-meshulam-charge-token",
+      "name": "קריאת חיוב טוקן מול שרתי משולם",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 360]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ String($json.status) === '1' }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-token-success",
+      "name": "האם חיוב הטוקן הצליח?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [500, 360]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1oPziYqsutpfD2Z8ZNv9NHNp6YHiWhDpDHd7WRK_rm40",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "סטטוס": "PAY"
+          },
+          "matchingColumns": [
+            "טלפון "
+          ],
+          "schema": [
+            {
+              "id": "טלפון ",
+              "displayName": "טלפון ",
+              "required": false,
+              "defaultMatch": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "סטטוס",
+              "displayName": "סטטוס",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "update-sheet-token-pay",
+      "name": "עדכון סטטוס ל-PAY בעקבות חיוב טוקן",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [740, 260]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"status\": \"PAY\",\n  \"transactionId\": \"{{ $('קריאת חיוב טוקן מול שרתי משולם').first().json.data ? $('קריאת חיוב טוקן מול שרתי משולם').first().json.data.transactionId : 'TX_OK' }}\",\n  \"message\": \"החיוב בכרטיס השמור בוצע בהצלחה וסטטוס עודכן ל-PAY\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-app-success",
+      "name": "החזרת תשובת הצלחה לאפליקציה",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [980, 260]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"status\": \"FAILED\",\n  \"error\": \"{{ $json.err ? $json.err.message : 'סירוב עסקה מספק הסליקה' }}\"\n}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-app-failed",
+      "name": "החזרת סירוב לאפליקציה",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [740, 480]
+    }
+  ],
+  "connections": {
+    "וובהוק התראת תשלום ממשולם (IPN)": {
+      "main": [
+        [
+          {
+            "node": "ניתוח נתוני עסקת משולם",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ניתוח נתוני עסקת משולם": {
+      "main": [
+        [
+          {
+            "node": "האם התשלום אושר במשולם?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "האם התשלום אושר במשולם?": {
+      "main": [
+        [
+          {
+            "node": "עדכון סטטוס ל-PAY בטבלת גוגל שיטס",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "עדכון סטטוס ל-PAY בטבלת גוגל שיטס": {
+      "main": [
+        [
+          {
+            "node": "אישור קליטה למשולם",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "וובהוק חיוב לקוח קבוע בטוקן": {
+      "main": [
+        [
+          {
+            "node": "קריאת חיוב טוקן מול שרתי משולם",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "קריאת חיוב טוקן מול שרתי משולם": {
+      "main": [
+        [
+          {
+            "node": "האם חיוב הטוקן הצליח?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "האם חיוב הטוקן הצליח?": {
+      "main": [
+        [
+          {
+            "node": "עדכון סטטוס ל-PAY בעקבות חיוב טוקן",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "החזרת סירוב לאפליקציה",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "עדכון סטטוס ל-PAY בעקבות חיוב טוקן": {
+      "main": [
+        [
+          {
+            "node": "החזרת תשובת הצלחה לאפליקציה",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
